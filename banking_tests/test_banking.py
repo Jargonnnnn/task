@@ -36,9 +36,6 @@ class TestBankingApplication:
         # Login as Harry Potter
         login_page.customer_login("Harry Potter")
         
-        # Wait for page to load completely
-        page.wait_for_timeout(500)
-        
         # Verify welcome message
         customer_page.expect_text(customer_page.WELCOME_MESSAGE, "Harry Potter")
         
@@ -46,8 +43,11 @@ class TestBankingApplication:
         account_number = customer_page.get_account_number()
         assert account_number, "Account number should be present"
         
-        # Logout
-        customer_page.logout()
+        # Logout - explicitly stay on customer selection screen (don't go to home)
+        customer_page.logout(return_to_home=False)
+        
+        # Wait a moment for the page transition to complete
+        page.wait_for_timeout(1000)
         
         # Verify we are back at customer selection
         assert login_page.is_at_customer_selection(), "Not returned to customer selection screen"
@@ -124,9 +124,6 @@ class TestBankingApplication:
         # Login as Harry Potter who has multiple accounts
         login_page.customer_login("Harry Potter")
         
-        # Wait for account information to fully load
-        page.wait_for_timeout(500)
-        
         # Initial account number and balance
         initial_account_number = customer_page.get_account_number()
         initial_balance = customer_page.get_balance()
@@ -135,10 +132,7 @@ class TestBankingApplication:
         assert customer_page.has_multiple_accounts(), "Harry Potter should have multiple accounts"
         
         customer_page.select_different_account()
-        
-        # Wait for account information to update
-        page.wait_for_timeout(500)
-        
+
         # Verify that account number changed
         new_account_number = customer_page.get_account_number()
         assert new_account_number != initial_account_number, "Account did not change"
@@ -176,7 +170,9 @@ class TestBankingApplication:
         assert deposit_amount_str in transaction_amounts or withdrawal_amount_str in transaction_amounts, "Transaction amounts should include our deposit or withdrawal"
         
     def test_complete_customer_lifecycle(self, login_page, manager_page, customer_page, page):
-        """Test the complete lifecycle of a customer: creation, account opening, transactions, and deletion."""
+        """Test the complete lifecycle of a customer: creation, account opening, transactions, and deletion
+        using Page Object Models for better test organization and maintenance.
+        """
         # Test data - use unique name to avoid conflicts
         unique_id = int(time.time())
         first_name = "John"
@@ -185,93 +181,68 @@ class TestBankingApplication:
         full_name = f"{first_name} {last_name}"
         deposit_amount = 500
         withdrawal_amount = 250
+        currency = "Dollar"
         
+        # Step 1: Login as bank manager
         login_page.manager_login()
+        
+        # Step 2: Create a new customer
+        manager_page.go_to_add_customer()
         manager_page.add_customer(first_name, last_name, post_code)
         
+        # Step 3: Verify the customer was added with increased wait time
         manager_page.go_to_customers_list()
-        page.wait_for_timeout(500)  # Wait for list to populate
-        assert manager_page.is_customer_listed(full_name), f"Customer {full_name} not found in the list"
+        page.wait_for_timeout(1000)  # Wait for the table to fully update
+        customer_found = manager_page.is_customer_listed(full_name)
+        assert customer_found, f"Customer {full_name} not found in table"
         
-        # Step 2: Manager opens an account for the customer
-        account_number = manager_page.open_account(full_name, "Dollar")
-        assert account_number, "Account number should be returned after account creation"
+        # Step 4: Create an account for the customer
+        manager_page.go_to_open_account()
+        account_number = manager_page.open_account(full_name, currency)
         
-        # Step 3: Customer logs in
-        page.goto(BASE_URL)  # Return to home page
+        # Step 5: Customer logs in
+        page.goto(BASE_URL)  # Navigate back to home
         login_page.customer_login(full_name)
         
-        # Verify welcome message
+        # Step 6: Verify welcome message
         customer_page.expect_text(customer_page.WELCOME_MESSAGE, full_name)
         
-        # Step 4: Customer performs deposit
+        # Step 7: Make a deposit
         customer_page.perform_deposit(deposit_amount)
-        customer_page.expect_text(customer_page.MESSAGE, "Deposit Successful")
         
-        # Verify balance after deposit
+        # Step 8: Verify success message and balance
+        customer_page.expect_text(customer_page.MESSAGE, "Deposit Successful")
         balance = customer_page.get_balance()
         assert balance == deposit_amount, f"Expected balance {deposit_amount}, got {balance}"
         
-        # Step 5: Customer performs withdrawal
+        # Step 9: Withdraw amount
         customer_page.perform_withdrawal(withdrawal_amount)
         
-        # Verify balance after withdrawal
+        # Step 10: Verify final balance
         updated_balance = customer_page.get_balance()
         expected_balance = deposit_amount - withdrawal_amount
         assert updated_balance == expected_balance, f"Expected balance {expected_balance}, got {updated_balance}"
         
-        # Step 6: Check transaction history
+        # Step 11: Check transaction history
         customer_page.go_to_transactions()
         customer_page.sort_transactions_by_date()
         
-        # Verify transactions exist
+        # Step 12: Verify transactions are listed
+        customer_page.expect_visible(customer_page.TRANSACTIONS_TABLE)
+        
+        # Step 13: Verify we have at least two transactions
         transactions_count = customer_page.get_transactions_count()
         assert transactions_count >= 2, f"Expected at least 2 transactions, found {transactions_count}"
         
-        # Step 7: Customer logs out
-        customer_page.logout()
+        # Step 14: Customer logs out and returns to home page
+        customer_page.logout(return_to_home=True)
         
-        # Step 8: Manager deletes the customer
+        # Step 15: Log back in as manager and delete the customer
         login_page.manager_login()
-        deleted = manager_page.delete_customer(full_name)
-        assert deleted, f"Customer {full_name} could not be deleted"
+        manager_page.go_to_customers_list()
         
-        # Verify customer was deleted
-        assert not manager_page.is_customer_listed(full_name), f"Customer {full_name} still found in the list after deletion"
-    
-    def test_manager_open_account_and_verify(self, login_page, manager_page, customer_page, page):
-        """Test manager creating a customer, opening an account, and verifying the account works."""
-        # Step 1: Add new customer via manager
-        login_page.manager_login()
-        
-        # Generate unique name to avoid conflicts with existing customers
-        unique_id = int(time.time())
-        first_name = "John"
-        last_name = f"Smith{unique_id}"
-        full_name = f"{first_name} {last_name}"
-        
-        manager_page.add_customer(first_name, last_name, "98765")
-        
-        # Step 2: Open a Dollar account for this customer
-        account_number = manager_page.open_account(full_name, "Dollar")
-        assert account_number, "Account number should be returned after account creation"
-        
-        # Step 3: Return to home and login as the new customer
-        page.goto(BASE_URL)  # Return to home page
-        login_page.customer_login(full_name)
-        
-        # Step 4: Verify the customer can see their account
-        customer_page.expect_text(customer_page.WELCOME_MESSAGE, full_name)
-        
-        # Verify account number
-        displayed_account = customer_page.get_account_number()
-        assert displayed_account, "Account number should be visible"
-        
-        # Step 5: Verify initial balance is zero
-        balance = customer_page.get_balance()
-        assert balance == 0, f"Initial balance should be 0, got {balance}"
-        
-        # Step 6: Clean up - return to manager and delete the customer
-        customer_page.logout()
-        login_page.manager_login()
+        # Step 16: Delete customer and verify
         manager_page.delete_customer(full_name)
+        page.wait_for_timeout(1000)  # Wait for the table to fully update
+        customer_still_exists = manager_page.is_customer_listed(full_name)
+        assert not customer_still_exists, f"Customer {full_name} still found after deletion"

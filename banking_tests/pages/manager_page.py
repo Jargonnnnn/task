@@ -35,6 +35,9 @@ class ManagerPage(BasePage):
     def add_customer(self, first_name: str, last_name: str, post_code: str):
         """Add a new customer."""
         self.go_to_add_customer()
+        
+        # Wait for form fields to be visible
+        self.page.wait_for_selector(self.FIRST_NAME_INPUT, state="visible", timeout=2000)
         self.fill(self.FIRST_NAME_INPUT, first_name)
         self.fill(self.LAST_NAME_INPUT, last_name)
         self.fill(self.POST_CODE_INPUT, post_code)
@@ -44,6 +47,9 @@ class ManagerPage(BasePage):
         
         # Submit the form
         self.click(self.ADD_CUSTOMER_BTN)
+        
+        # Wait for the operation to complete
+        self.page.wait_for_timeout(1000)
     
     def open_account(self, customer_name: str, currency: str):
         """Open a new account for a customer with specified currency."""
@@ -64,7 +70,7 @@ class ManagerPage(BasePage):
             # Set a default account number in case we can't extract it
             self.account_number = "unknown"
                 
-            # The dialog shows: "Account created successfully with account Number :XXXX"
+            # The dialog shows: "Account created successfully with account Number :" followed by the account number
             pattern = r"Account created successfully with account Number :(\d+)"
             
             # Extract the account number using the pattern
@@ -88,29 +94,45 @@ class ManagerPage(BasePage):
         self.go_to_customers_list()
         
         # Wait for the table to be fully loaded
-        self.page.wait_for_selector(self.CUSTOMERS_TABLE, state="visible", timeout=500)
+        self.page.wait_for_selector(self.CUSTOMERS_TABLE, state="visible", timeout=2000)
         
-        # Search for the customer to ensure we get the right one
-        self.fill(self.SEARCH_CUSTOMER, customer_name)
-        self.page.wait_for_timeout(500)  # Wait for search results
-        
-        # Find the row containing the customer name
-        rows = self.page.locator(self.CUSTOMER_ROWS)
-        count = rows.count()
-        delete_button = None
-        
-        for i in range(count):
-            row = rows.nth(i)
-            row_text = row.text_content()
-            if customer_name in row_text:
-                # Find delete button within this row
-                delete_button = row.locator("button:text('Delete')")
-                break
-        
-        if delete_button and delete_button.count() > 0:
-            delete_button.click()
-            self.page.wait_for_timeout(500)  # Wait for deletion to complete
-            return True
+        # Handle full name by splitting it into components
+        if " " in customer_name:
+            parts = customer_name.split(" ", 1)
+            first_name = parts[0]
+            last_name = parts[1]
+            
+            # Try searching for the first name as it's usually unique enough
+            self.fill(self.SEARCH_CUSTOMER, first_name)
+            self.page.wait_for_timeout(1000)  # Increased wait time for search results
+            
+            # Find rows that contain the last name
+            rows = self.page.locator(self.CUSTOMER_ROWS)
+            for i in range(rows.count()):
+                row = rows.nth(i)
+                row_text = row.text_content()
+                if last_name in row_text:
+                    # Find delete button within this row
+                    delete_button = row.locator("button:text('Delete')")
+                    if delete_button.count() > 0:
+                        delete_button.click()
+                        self.page.wait_for_timeout(1000)  # Increased wait time for deletion
+                        return True
+        else:
+            # For non-full names, use the original approach
+            self.fill(self.SEARCH_CUSTOMER, customer_name)
+            self.page.wait_for_timeout(1000)
+            
+            rows = self.page.locator(self.CUSTOMER_ROWS)
+            for i in range(rows.count()):
+                row = rows.nth(i)
+                row_text = row.text_content()
+                if customer_name in row_text:
+                    delete_button = row.locator("button:text('Delete')")
+                    if delete_button.count() > 0:
+                        delete_button.click()
+                        self.page.wait_for_timeout(1000)
+                        return True
         
         return False
     
@@ -118,18 +140,37 @@ class ManagerPage(BasePage):
         """Check if a customer is listed in the customers table."""
         self.go_to_customers_list()
         
-        # Wait for the table to be fully loaded
-        self.page.wait_for_selector(self.CUSTOMERS_TABLE, state="visible", timeout=500)
+        # Wait for the table to be fully loaded with a longer timeout
+        self.page.wait_for_selector(self.CUSTOMERS_TABLE, state="visible", timeout=2000)
         
-        # Get table content before searching to check if customer exists
-        table_content = self.page.locator(self.CUSTOMERS_TABLE).text_content()
-        if customer_name in table_content:
-            return True
+        # For full name check, we'll try to split it into components
+        # This handles cases where first and last name appear separately in the table
+        if " " in customer_name:
+            parts = customer_name.split(" ", 1)
+            first_name = parts[0]
+            last_name = parts[1]
             
-        # Try searching for the customer as backup
-        self.fill(self.SEARCH_CUSTOMER, customer_name)
-        self.page.wait_for_timeout(500)  # Increased wait time for search results
-        
-
-        table_content = self.page.locator(self.CUSTOMERS_TABLE).text_content()
-        return customer_name in table_content
+            # First try with the original full name
+            table_content = self.page.locator(self.CUSTOMERS_TABLE).text_content()
+            if customer_name in table_content:
+                return True
+                
+            # Try searching for the first name
+            self.fill(self.SEARCH_CUSTOMER, first_name)
+            self.page.wait_for_timeout(1000)  # Increased wait time for search results
+            
+            # Check if any row contains the last name after filtering by first name
+            rows = self.page.locator(self.CUSTOMER_ROWS)
+            for i in range(rows.count()):
+                row_text = rows.nth(i).text_content()
+                if last_name in row_text:
+                    return True
+        else:
+            # If it's not a full name, use the original method
+            self.fill(self.SEARCH_CUSTOMER, customer_name)
+            self.page.wait_for_timeout(1000)  # Increased wait time
+            
+            table_content = self.page.locator(self.CUSTOMERS_TABLE).text_content()
+            return customer_name in table_content
+            
+        return False

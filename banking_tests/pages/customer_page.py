@@ -41,20 +41,37 @@ class CustomerPage(BasePage):
             return match.group(1)
         return account_text
     
-    def logout(self):
-        """Log out from customer account."""
+    def logout(self, return_to_home=False):
+        """Log out from customer account.
+        
+        Args:
+            return_to_home (bool): If True, navigates to home page after logout.
+                                   If False, stays on customer selection screen.
+        """
+        # Click logout button
+        self.page.wait_for_selector(self.LOGOUT_BTN, state="visible", timeout=5000)
         self.click(self.LOGOUT_BTN)
+        self.page.wait_for_timeout(1000)  # Wait for logout to complete
+        
+        # After logout, optionally click Home button to return to main page
+        if return_to_home:
+            home_button = self.page.locator('button.btn.home')
+            if home_button.is_visible():
+                home_button.click()
+                self.page.wait_for_timeout(1000)  # Wait for home page to load
     
     def perform_deposit(self, amount: int):
         """Deposit funds into the account."""
         self.click(self.DEPOSIT_TAB)
+        self.page.wait_for_timeout(1000)  # Wait for deposit tab to be active
         self.fill(self.AMOUNT_INPUT, str(amount))
         self.click(self.DEPOSIT_BTN)
+        self.page.wait_for_timeout(1000)  # Wait for deposit to process
     
     def perform_withdrawal(self, amount: int):
         """Withdraw funds from the account."""
         self.click(self.WITHDRAW_TAB)
-        self.page.wait_for_timeout(500)  # Wait for the withdrawal form to be ready
+        self.page.wait_for_timeout(1000)  # Wait for withdrawal tab to be active
         
         # Clear the input field first to ensure clean entry
         self.page.locator(self.AMOUNT_INPUT).clear()
@@ -66,9 +83,9 @@ class CustomerPage(BasePage):
         else:
             # Fallback to less specific selector if our specific one fails
             self.page.locator("button:text('Withdraw')").click()
-            
-        # Wait for any response after clicking withdraw
-        self.page.wait_for_timeout(500)
+        
+        # Wait for withdrawal to process and UI to update
+        self.page.wait_for_timeout(1000)
         
         # Return true if the message contains "successful"
         message_element = self.page.locator(self.MESSAGE)
@@ -109,8 +126,7 @@ class CustomerPage(BasePage):
         if other_options:
             # Select the first different account by index
             dropdown.select_option(index=other_options[0]['index'])
-            # Wait for the account data to load
-            self.page.wait_for_timeout(500)  # Increased timeout to ensure loading completes
+            self.page.wait_for_timeout(500)
     
     def select_account_by_number(self, account_number: str):
         """Select a specific account by account number."""
@@ -130,23 +146,18 @@ class CustomerPage(BasePage):
         for option in options:
             if account_number in option['text']:
                 dropdown.select_option(index=option['index'])
-                break
-                
-        # Wait for the account data to load
-        self.page.wait_for_timeout(500)
-    
+                break      
+
     def go_to_transactions(self):
         """Navigate to the Transactions tab."""
         self.click(self.TRANSACTIONS_TAB)
-        # Wait for transactions to load
-        self.page.wait_for_timeout(500)
-        
+        self.page.wait_for_timeout(1000)  # Wait for transactions to load
+
     def sort_transactions_by_date(self):
         """Sort transactions by date (newest first)."""
         self.click(self.SORT_BY_DATE_BTN)
-        # Wait for sorting to complete
-        self.page.wait_for_timeout(500)
-    
+        self.page.wait_for_timeout(1000)  # Wait for sorting to complete
+
     def get_transactions_count(self) -> int:
         """Get the number of transaction rows in the table."""
         rows = self.page.locator(self.TRANSACTION_ROWS)
