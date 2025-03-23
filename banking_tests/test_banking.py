@@ -37,7 +37,7 @@ class TestBankingApplication:
         login_page.customer_login("Harry Potter")
         
         # Wait for page to load completely
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(500)
         
         # Verify welcome message
         customer_page.expect_text(customer_page.WELCOME_MESSAGE, "Harry Potter")
@@ -125,7 +125,7 @@ class TestBankingApplication:
         login_page.customer_login("Harry Potter")
         
         # Wait for account information to fully load
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(500)
         
         # Initial account number and balance
         initial_account_number = customer_page.get_account_number()
@@ -137,7 +137,7 @@ class TestBankingApplication:
         customer_page.select_different_account()
         
         # Wait for account information to update
-        page.wait_for_timeout(1000)
+        page.wait_for_timeout(500)
         
         # Verify that account number changed
         new_account_number = customer_page.get_account_number()
@@ -171,160 +171,107 @@ class TestBankingApplication:
         
         # Get transaction amounts and verify our transactions are included
         transaction_amounts = customer_page.get_transaction_amounts()[:10]  # Look at 10 most recent
-        
-        # Check that our transaction amounts are in the list
-        # We expect the test to fail if the transaction amounts are not found
-        # Convert integer amounts to strings for comparison since transaction_amounts contains strings
         deposit_amount_str = str(deposit_amount)
         withdrawal_amount_str = str(withdrawal_amount)
         assert deposit_amount_str in transaction_amounts or withdrawal_amount_str in transaction_amounts, "Transaction amounts should include our deposit or withdrawal"
         
     def test_complete_customer_lifecycle(self, login_page, manager_page, customer_page, page):
         """Test the complete lifecycle of a customer: creation, account opening, transactions, and deletion."""
-        # Test data using exact name as requested
+        # Test data - use unique name to avoid conflicts
+        unique_id = int(time.time())
         first_name = "John"
-        last_name = "Smith"
+        last_name = f"Smith{unique_id}"
         post_code = "12345"
         full_name = f"{first_name} {last_name}"
         deposit_amount = 500
         withdrawal_amount = 250
         
-        # Step 1: Navigate to the banking website
-        page.goto(BASE_URL)
+        login_page.manager_login()
+        manager_page.add_customer(first_name, last_name, post_code)
         
-        # Step 2: Click on Bank Manager Login button
-        page.locator('button:text("Bank Manager Login")').click()
-        page.wait_for_timeout(1000)
+        manager_page.go_to_customers_list()
+        page.wait_for_timeout(500)  # Wait for list to populate
+        assert manager_page.is_customer_listed(full_name), f"Customer {full_name} not found in the list"
         
-        # Step 3: Click on Add Customer tab
-        page.locator('button:text("Add Customer")').click()
-        page.wait_for_timeout(1000)
+        # Step 2: Manager opens an account for the customer
+        account_number = manager_page.open_account(full_name, "Dollar")
+        assert account_number, "Account number should be returned after account creation"
         
-        # Step 4: Fill in customer information
-        page.locator('input[placeholder="First Name"]').fill(first_name)
-        page.locator('input[placeholder="Last Name"]').fill(last_name)
-        page.locator('input[placeholder="Post Code"]').fill(post_code)
+        # Step 3: Customer logs in
+        page.goto(BASE_URL)  # Return to home page
+        login_page.customer_login(full_name)
         
-        # Handle the alert that will appear after adding customer
-        page.once("dialog", lambda dialog: dialog.accept())
+        # Verify welcome message
+        customer_page.expect_text(customer_page.WELCOME_MESSAGE, full_name)
         
-        # Step 5: Click on Add Customer button
-        page.locator('button[type="submit"]:text("Add Customer")').click()
-        page.wait_for_timeout(1000)  # Wait for alert to be handled
+        # Step 4: Customer performs deposit
+        customer_page.perform_deposit(deposit_amount)
+        customer_page.expect_text(customer_page.MESSAGE, "Deposit Successful")
         
-        # Step 6: Verify the customer was added by going to Customers tab
-        page.locator('button:text("Customers")').click()
-        page.wait_for_timeout(1000)
-        
-        # Search for the customer we just added
-        page.locator('input[placeholder="Search Customer"]').fill(first_name)
-        page.wait_for_timeout(1000)
-        
-        # Verify the customer appears in the search results
-        customers_table = page.locator('table.table')
-        assert customers_table.text_content().find(first_name) >= 0, f"Customer {first_name} not found in table"
-        assert customers_table.text_content().find(last_name) >= 0, f"Customer {last_name} not found in table"
-        
-        # Step 7: Create an account for the customer
-        page.locator('button:text("Open Account")').click()
-        page.wait_for_timeout(1000)
-        
-        # Select the customer and currency
-        page.locator('#userSelect').select_option(label=full_name)
-        page.locator('#currency').select_option(label="Dollar")
-        
-        # Handle alert that will show account number
-        page.once("dialog", lambda dialog: dialog.accept())
-        
-        # Click Process button
-        page.locator('button:text("Process")').click()
-        page.wait_for_timeout(1000)
-        
-        # Step 8: Customer logs in
-        page.goto(BASE_URL)
-        page.locator('button:text("Customer Login")').click()
-        page.wait_for_timeout(1000)
-        
-        # Select customer
-        page.locator('#userSelect').select_option(label=full_name)
-        page.locator('button:text("Login")').click()
-        page.wait_for_timeout(1000)
-        
-        # Verify welcome message contains the customer name
-        welcome_element = page.locator('span.fontBig')
-        assert welcome_element.text_content().find(full_name) >= 0, "Welcome message doesn't contain customer name"
-        
-        # Step 9: Make a deposit
-        page.locator('button:text("Deposit")').click()
-        page.wait_for_timeout(500)
-        
-        page.locator('input[placeholder="amount"]').fill(str(deposit_amount))
-        page.locator('button[type="submit"]:text("Deposit")').click()
-        page.wait_for_timeout(500)
-        
-        # Verify success message
-        message = page.locator('span.error')
-        assert "Deposit Successful" in message.text_content(), "Deposit success message not displayed"
-        
-        # Step 10: Check balance
-        balance_element = page.locator('div.center strong:nth-child(2)')
-        balance = int(balance_element.text_content())
+        # Verify balance after deposit
+        balance = customer_page.get_balance()
         assert balance == deposit_amount, f"Expected balance {deposit_amount}, got {balance}"
         
-        # Step 11: Withdraw amount
-        page.locator('button:text("Withdrawl")').click()
-        page.wait_for_timeout(500)
+        # Step 5: Customer performs withdrawal
+        customer_page.perform_withdrawal(withdrawal_amount)
         
-        page.locator('input[placeholder="amount"]').fill(str(withdrawal_amount))
-        # Use a more specific selector to target only the submit button
-        page.locator('button[type="submit"]:text("Withdraw")').click()
-        page.wait_for_timeout(1000)
-        
-        # Verify final balance
-        updated_balance = int(balance_element.text_content())
+        # Verify balance after withdrawal
+        updated_balance = customer_page.get_balance()
         expected_balance = deposit_amount - withdrawal_amount
         assert updated_balance == expected_balance, f"Expected balance {expected_balance}, got {updated_balance}"
         
-        # Step 12: Logout
-        page.locator('button:text("Logout")').click()
-        page.wait_for_timeout(500)
+        # Step 6: Check transaction history
+        customer_page.go_to_transactions()
+        customer_page.sort_transactions_by_date()
         
-        # Step 13: Log back in as manager and delete the customer
-        page.locator('button:text("Home")').click()
-        page.wait_for_timeout(500)
+        # Verify transactions exist
+        transactions_count = customer_page.get_transactions_count()
+        assert transactions_count >= 2, f"Expected at least 2 transactions, found {transactions_count}"
         
-        page.locator('button:text("Bank Manager Login")').click()
-        page.wait_for_timeout(500)
+        # Step 7: Customer logs out
+        customer_page.logout()
         
-        page.locator('button:text("Customers")').click()
-        page.wait_for_timeout(1000)
-        
-        # Search for customer
-        page.locator('input[placeholder="Search Customer"]').fill(first_name)
-        page.wait_for_timeout(1000)
-        
-        # Find the delete button for our customer and click it
-        rows = page.locator('table.table tbody tr')
-        for i in range(rows.count()):
-            row = rows.nth(i)
-            if first_name in row.text_content() and last_name in row.text_content():
-                row.locator('button:text("Delete")').click()
-                break
-                
-        page.wait_for_timeout(1000)
+        # Step 8: Manager deletes the customer
+        login_page.manager_login()
+        deleted = manager_page.delete_customer(full_name)
+        assert deleted, f"Customer {full_name} could not be deleted"
         
         # Verify customer was deleted
-        page.locator('input[placeholder="Search Customer"]').fill(first_name)
-        page.wait_for_timeout(1000)
-        
-        # After deletion, there should be no results for this customer
-        rows_after_delete = page.locator('table.table tbody tr')
-        found_after_delete = False
-        for i in range(rows_after_delete.count()):
-            row_text = rows_after_delete.nth(i).text_content()
-            if first_name in row_text and last_name in row_text:
-                found_after_delete = True
-                break
-                
-        assert not found_after_delete, f"Customer {full_name} still exists after deletion"
+        assert not manager_page.is_customer_listed(full_name), f"Customer {full_name} still found in the list after deletion"
     
+    def test_manager_open_account_and_verify(self, login_page, manager_page, customer_page, page):
+        """Test manager creating a customer, opening an account, and verifying the account works."""
+        # Step 1: Add new customer via manager
+        login_page.manager_login()
+        
+        # Generate unique name to avoid conflicts with existing customers
+        unique_id = int(time.time())
+        first_name = "John"
+        last_name = f"Smith{unique_id}"
+        full_name = f"{first_name} {last_name}"
+        
+        manager_page.add_customer(first_name, last_name, "98765")
+        
+        # Step 2: Open a Dollar account for this customer
+        account_number = manager_page.open_account(full_name, "Dollar")
+        assert account_number, "Account number should be returned after account creation"
+        
+        # Step 3: Return to home and login as the new customer
+        page.goto(BASE_URL)  # Return to home page
+        login_page.customer_login(full_name)
+        
+        # Step 4: Verify the customer can see their account
+        customer_page.expect_text(customer_page.WELCOME_MESSAGE, full_name)
+        
+        # Verify account number
+        displayed_account = customer_page.get_account_number()
+        assert displayed_account, "Account number should be visible"
+        
+        # Step 5: Verify initial balance is zero
+        balance = customer_page.get_balance()
+        assert balance == 0, f"Initial balance should be 0, got {balance}"
+        
+        # Step 6: Clean up - return to manager and delete the customer
+        customer_page.logout()
+        login_page.manager_login()
+        manager_page.delete_customer(full_name)
