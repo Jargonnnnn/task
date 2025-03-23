@@ -26,3 +26,4 @@ See [banking_tests/README.md](banking_tests/README.md) for detailed instructions
 4. **Invalid Withdrawal Amount**
 5. **Multiple Account Navigation**
 6. **Transaction History**
+7. **Complete Customer Lifecycle**

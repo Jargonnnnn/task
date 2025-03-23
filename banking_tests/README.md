@@ -4,7 +4,7 @@ This project contains automated tests for the banking demo website at [GlobalSQA
 
 ## Test Scenarios
 
-Six comprehensive test scenarios are implemented:
+Seven comprehensive test scenarios are implemented:
 
 ### Core Functionality Tests
 1. **Customer Login and Logout**: Validates a customer can log in, view account details, and log out.
@@ -15,6 +15,9 @@ Six comprehensive test scenarios are implemented:
 4. **Invalid Withdrawal Amount**: Tests system validation when attempting to withdraw more money than available in the account.
 5. **Multiple Accounts Navigation**: Tests switching between multiple accounts for a customer and verifies that account-specific data is correctly displayed.
 6. **Transaction History**: Verifies the transaction history functionality after making deposits and withdrawals.
+
+### Manager-Focused Test
+7. **Complete Customer Lifecycle**: Tests the entire lifecycle of a customer - from creation by manager, account opening, transactions, to customer deletion.
 
 ## Prerequisites
 

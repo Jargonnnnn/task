@@ -13,9 +13,7 @@ class CustomerPage(BasePage):
     WITHDRAW_TAB = "button[ng-click='withdrawl()']"
     TRANSACTIONS_TAB = "button[ng-click='transactions()']"
     AMOUNT_INPUT = "input[placeholder='amount']"
-    # More specific selectors to avoid ambiguity
     DEPOSIT_BTN = "form button[type='submit']:text('Deposit')"
-    # The actual withdraw button doesn't have type='submit' in the HTML
     WITHDRAW_BTN = "form button.btn.btn-default:text('Withdraw')"
     MESSAGE = "span.error"
     ACCOUNTS_DROPDOWN = "#accountSelect"
@@ -70,7 +68,7 @@ class CustomerPage(BasePage):
             self.page.locator("button:text('Withdraw')").click()
             
         # Wait for any response after clicking withdraw
-        self.page.wait_for_timeout(1000)
+        self.page.wait_for_timeout(500)
         
         # Return true if the message contains "successful"
         message_element = self.page.locator(self.MESSAGE)
@@ -112,7 +110,7 @@ class CustomerPage(BasePage):
             # Select the first different account by index
             dropdown.select_option(index=other_options[0]['index'])
             # Wait for the account data to load
-            self.page.wait_for_timeout(1000)  # Increased timeout to ensure loading completes
+            self.page.wait_for_timeout(500)  # Increased timeout to ensure loading completes
     
     def select_account_by_number(self, account_number: str):
         """Select a specific account by account number."""
@@ -141,7 +139,7 @@ class CustomerPage(BasePage):
         """Navigate to the Transactions tab."""
         self.click(self.TRANSACTIONS_TAB)
         # Wait for transactions to load
-        self.page.wait_for_timeout(1000)
+        self.page.wait_for_timeout(500)
         
     def sort_transactions_by_date(self):
         """Sort transactions by date (newest first)."""

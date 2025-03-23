@@ -8,12 +8,12 @@ from playwright.sync_api import sync_playwright
 @pytest.hookimpl(tryfirst=True)
 def pytest_runtest_setup(item):
     """Called before each test is run."""
-    logging.info(f"▶️ STARTING TEST: {item.name}")
+    logging.info(f"STARTING TEST: {item.name}")
     
 @pytest.hookimpl(trylast=True)
 def pytest_runtest_teardown(item):
     """Called after each test is completed."""
-    logging.info(f"⏹️ FINISHED TEST: {item.name}\n" + "-"*80)
+    logging.info(f"FINISHED TEST: {item.name}\n" + "-"*80)
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item, call):
