@@ -117,4 +117,3 @@ venv.bak/
 # Project specific
 **/results/*.json
 test_results.json
-banking_tests_explanation.md
