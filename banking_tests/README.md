@@ -30,12 +30,7 @@ Follow these steps to set up the test environment:
 2. Install the required dependencies:
    ```
    pip install -r requirements.txt
-   ```
-   
-   Alternatively, you can install dependencies directly:
-   ```
-   pip install pytest==8.3.5 playwright==1.47.0 pytest-playwright==0.7.0 pytest-json-report==1.5.0
-   ```
+
 
 3. Install Playwright browsers:
    ```
